@@ -1,0 +1,122 @@
+import { useEffect, useRef, useCallback } from 'react';
+import { useStore } from '../store/useStore';
+
+const WS_URL = 'ws://localhost:3001';
+
+export function useWebSocket() {
+  const ws = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const { setConnected, setSystemState, updateRobot, addTrade, closeTrade, updateMarketTick, updateEquity, addAlert } = useStore();
+  const updateRadar = useStore(s => s.updateRadar);
+  const connect = useCallback(() => {
+    if (ws.current?.readyState === WebSocket.OPEN) return;
+    const socket = new WebSocket(WS_URL);
+    ws.current = socket;
+
+    socket.onopen = () => {
+      setConnected(true);
+      console.log('[WS] Connected to backend');
+    };
+
+    socket.onclose = () => {
+      setConnected(false);
+      reconnectTimer.current = setTimeout(connect, 3000);
+    };
+
+    socket.onerror = () => {
+      setConnected(false);
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const { type, payload } = msg;
+        switch (type) {
+          case 'system_state': {
+            const p = payload as { mode?: 'paper' | 'testnet' | 'live'; accountBalance?: unknown; [k: string]: unknown };
+            setSystemState(p as Parameters<typeof setSystemState>[0]);
+            if (p.mode) useStore.getState().setMode(p.mode);
+            if ('accountBalance' in p) useStore.getState().setAccountBalance(p.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            break;
+          }
+          case 'robot_state':
+            updateRobot(payload as Parameters<typeof updateRobot>[0]);
+            break;
+          case 'trade_open':
+            addTrade(payload as Parameters<typeof addTrade>[0]);
+            break;
+          case 'trade_close':
+            closeTrade(payload as Parameters<typeof closeTrade>[0]);
+            break;
+          case 'trailing_activated':
+          case 'trailing_updated':
+            useStore.getState().updateTrailing(payload as Parameters<ReturnType<typeof useStore.getState>['updateTrailing']>[0]);
+            break;
+          case 'market_tick':
+            updateMarketTick((payload as { symbol: string; price: number }).symbol, (payload as { symbol: string; price: number }).price);
+            break;
+          case 'equity_update':
+            updateEquity((payload as { capital: number; equityCurve?: Parameters<typeof updateEquity>[1] }).capital, (payload as { equityCurve?: Parameters<typeof updateEquity>[1] }).equityCurve);
+            break;
+          case 'capital_update':
+            updateEquity((payload as { capital: number }).capital);
+            break;
+          case 'alert':
+            addAlert(payload as { level: string; message: string });
+            break;
+          case 'active_trades_update':
+            useStore.getState().setSystemState({ activeTrades: (payload as { activeTrades: Parameters<typeof useStore.getState>['0']['activeTrades'] }).activeTrades });
+            break;
+          case 'radar_update':
+            updateRadar({ signals: (payload as { signals: Parameters<typeof updateRadar>[0]['signals']; scanCount: number; scannedAt: number }).signals, scanCount: (payload as { scanCount: number }).scanCount, scannedAt: (payload as { scannedAt: number }).scannedAt });
+            break;
+          case 'config_update': {
+            const cfg = payload as { hasKeys?: boolean; mode?: 'paper' | 'testnet' | 'live'; accountBalance?: unknown };
+            if (cfg.mode) useStore.getState().setMode(cfg.mode);
+            if ('accountBalance' in cfg) useStore.getState().setAccountBalance(cfg.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if (cfg.hasKeys !== undefined) useStore.getState().setApiKeySet(cfg.hasKeys);
+            break;
+          }
+          case 'account_balance': {
+            const ab = payload as { accountBalance?: unknown; mode?: 'paper' | 'testnet' | 'live' };
+            if ('accountBalance' in ab) useStore.getState().setAccountBalance(ab.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if (ab.mode) useStore.getState().setMode(ab.mode);
+            break;
+          }
+          case 'session_reset': {
+            const sr = payload as { mode?: 'paper' | 'testnet' | 'live'; accountBalance?: unknown };
+            useStore.getState().setSystemState({
+              tradeHistory:  [],
+              activeTrades:  [],
+              equityCurve:   [{ time: Date.now(), value: 0 }],
+              capital:       0,
+              totalPnl:      0,
+              todayPnl:      0,
+              drawdown:      0,
+              killSwitchActive: false,
+            });
+            if (sr.mode) useStore.getState().setMode(sr.mode);
+            if ('accountBalance' in sr) useStore.getState().setAccountBalance(sr.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            break;
+          }
+        }
+      } catch (_) {}
+    };
+  }, [setConnected, setSystemState, updateRobot, addTrade, closeTrade, updateMarketTick, updateEquity, addAlert, updateRadar]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      clearTimeout(reconnectTimer.current);
+      ws.current?.close();
+    };
+  }, [connect]);
+
+  const sendCommand = useCallback((type: string, payload: unknown) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type, payload }));
+    }
+  }, []);
+
+  return { sendCommand };
+}
