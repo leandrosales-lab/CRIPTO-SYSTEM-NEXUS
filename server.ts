@@ -190,7 +190,7 @@ binance.on('order_fill', (fill: { symbol: string; orderId: string; orderType: 'T
 radar.on('radar_update', async (data: { signals: RadarSignal[]; scannedAt: number; scanCount: number }) => {
   broadcast('radar_update', data);
 
-  // AUTO-TRADE: execute top signals automatically (score >= 50, not already open)
+  // AUTO-TRADE: execute top signals automatically (FORTE only — score >= 70)
   // Check by symbol+direction to prevent duplicates (allow hedge if both sides qualify)
   const openTradeKeys = new Set(
     executor.getOpenTrades()
@@ -200,7 +200,7 @@ radar.on('radar_update', async (data: { signals: RadarSignal[]; scannedAt: numbe
   radarOpenSymbols.clear();
 
   for (const signal of data.signals) {
-    if (signal.score < 50) continue;
+    if (signal.strength !== 'FORTE') continue;
     if (openTradeKeys.has(`${signal.symbol}-${signal.direction}`)) continue;
     if (radarOpenSymbols.has(signal.symbol)) continue;
 
