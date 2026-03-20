@@ -32,33 +32,25 @@ const ROBOT_META: Record<string, RobotMeta> = {
   nexus: {
     moduleLabel:   'Núcleo Neural',
     strategyLabel: 'Scalpel V4 (HFT)',
-    allocation:    '5.000,00 USDT',
-    leverage:      '10x CRUZADA',
+    allocation:    '5,00 USDT',
+    leverage:      '2x ISOLADA',
     chartLabel:    'MATRIZ_VOLATILIDADE_PNL',
     accentHex:     '#4cd6ff',
   },
   phantom: {
     moduleLabel:   'Módulo Furtivo',
     strategyLabel: 'Trend Follower',
-    allocation:    '3.250,00 USDT',
-    leverage:      '5x ISOLADA',
+    allocation:    '5,00 USDT',
+    leverage:      '2x ISOLADA',
     chartLabel:    'ANÁLISE_FLUXO_TENDÊNCIA',
     accentHex:     '#00e297',
   },
   oracle: {
     moduleLabel:   'Motor de Análise',
     strategyLabel: 'Reversão à Média',
-    allocation:    '4.200,50 USDT',
-    leverage:      '20x CRUZADA',
+    allocation:    '5,00 USDT',
+    leverage:      '2x ISOLADA',
     chartLabel:    'DINÂMICA_DE_REVERSÃO',
-    accentHex:     '#ffd1d5',
-  },
-  radar: {
-    moduleLabel:   'Monitor de Risco',
-    strategyLabel: 'Monitoramento de Risco',
-    allocation:    '1.000,00 USDT',
-    leverage:      '1x ISOLADA',
-    chartLabel:    'VARREDURA_DE_MERCADO',
     accentHex:     '#ffd1d5',
   },
 };
@@ -100,9 +92,9 @@ const STATUS_MAP: Record<string, { label: string; color: 'cyan' | 'green' | 'red
 };
 
 const CAPITAL_PRESETS = [
-  { label: '$1k', value: 1000 },
-  { label: '$3k', value: 3000 },
-  { label: '$5k', value: 5000 },
+  { label: '$5',  value: 5  },
+  { label: '$10', value: 10 },
+  { label: '$50', value: 50 },
 ];
 
 // ─── Mini Sparkline SVG ────────────────────────────────────────────────────────
@@ -146,7 +138,7 @@ function MiniSparkline({
   return (
     <div
       className="relative w-full overflow-hidden rounded-lg"
-      style={{ height: 96, background: '#191c1f' }}
+      style={{ height: 48, background: '#191c1f' }}
     >
       {/* gradient overlay */}
       <div
@@ -196,7 +188,7 @@ export default function RobotCard({
   };
 
   const [showModal,    setShowModal]    = useState(false);
-  const [capitalInput, setCapitalInput] = useState(1000);
+  const [capitalInput, setCapitalInput] = useState(5);
   const [starting,     setStarting]     = useState(false);
 
   // dados do robô (fallback)
@@ -260,15 +252,15 @@ export default function RobotCard({
           border:       `1px solid #3c494e`,
           borderLeft:   `4px solid ${cfg.border}`,
           boxShadow:    isRunning ? `0 0 40px -10px ${cfg.glow}` : 'none',
-          padding:      '2rem',
+          padding:      '1rem',
         }}
       >
         {/* ── Cabeçalho ── */}
-        <div className="flex justify-between items-start mb-10">
+        <div className="flex justify-between items-start mb-4">
           {/* esquerda: módulo + nome */}
           <div>
             <span
-              className="text-[10px] font-bold tracking-[0.2em] px-2 py-1 rounded uppercase"
+              className="text-[9px] font-bold tracking-[0.15em] px-1.5 py-0.5 rounded uppercase"
               style={{
                 background: `${cfg.accent}18`,
                 color:      cfg.accent,
@@ -278,7 +270,7 @@ export default function RobotCard({
               {meta.moduleLabel}
             </span>
             <h3
-              className="mt-2 text-3xl font-black uppercase tracking-tight"
+              className="mt-1 text-lg font-black uppercase tracking-tight"
               style={{
                 color:      '#e1e2e7',
                 fontFamily: "'Space Grotesk', sans-serif",
@@ -289,68 +281,57 @@ export default function RobotCard({
           </div>
 
           {/* direita: PnL 24h + status badge */}
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-0.5">
             <span style={{ color: pnlPos ? '#00e297' : '#ffb4ab', fontFamily: "'Space Grotesk', sans-serif" }}>
               <FlipNumber
                 value={r.todayPnl}
                 prefix={r.todayPnl >= 0 ? '+' : ''}
                 suffix="%"
                 decimals={1}
-                className="text-xl font-bold"
+                className="text-sm font-bold"
               />
             </span>
             <span
-              className="text-[10px] uppercase tracking-widest"
+              className="text-[9px] uppercase tracking-widest"
               style={{ color: '#bbc9cf' }}
             >
-              Desempenho 24H
+              24H
             </span>
             <GlowBadge label={statusInfo.label} color={statusInfo.color} dot={isRunning} />
           </div>
         </div>
 
         {/* ── Linhas de info ── */}
-        <div className="space-y-6 mb-10">
+        <div className="space-y-2 mb-4">
           {/* Estratégia */}
           <div
-            className="flex justify-between items-center pb-4"
+            className="flex justify-between items-center pb-2"
             style={{ borderBottom: '1px solid rgba(60,73,78,0.4)' }}
           >
-            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: '#bbc9cf' }}>
+            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#bbc9cf' }}>
               Estratégia
             </span>
-            <span className="text-sm font-bold" style={{ color: cfg.accent }}>
+            <span className="text-xs font-bold" style={{ color: cfg.accent }}>
               {meta.strategyLabel}
             </span>
           </div>
 
-          {/* Alocação de Banca */}
-          <div
-            className="flex justify-between items-center pb-4"
-            style={{ borderBottom: '1px solid rgba(60,73,78,0.4)' }}
-          >
-            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: '#bbc9cf' }}>
-              Alocação de Banca
-            </span>
-            <span className="text-sm font-bold" style={{ color: '#e1e2e7' }}>
-              {allocationStr}
-            </span>
-          </div>
-
-          {/* Alavancagem */}
+          {/* Alocação + Alavancagem na mesma linha */}
           <div className="flex justify-between items-center">
-            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: '#bbc9cf' }}>
-              Alavancagem Binance
+            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: '#bbc9cf' }}>
+              Banca / Alavancagem
             </span>
-            <span
-              className="text-sm font-bold px-2 py-0.5 rounded"
-              style={{
-                color:      cfg.accent,
-                background: `${cfg.accent}18`,
-              }}
-            >
-              {meta.leverage}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold" style={{ color: '#e1e2e7' }}>
+                {allocationStr}
+              </span>
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                style={{ color: cfg.accent, background: `${cfg.accent}18` }}
+              >
+                {meta.leverage}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -358,7 +339,7 @@ export default function RobotCard({
         {isStopped ? (
           /* Modo parado: input de capital */
           <div
-            className="mb-8 p-4 rounded-lg space-y-3"
+            className="mb-4 p-3 rounded-lg space-y-2"
             style={{ background: '#191c1f', border: '1px solid #3c494e' }}
             onClick={e => e.stopPropagation()}
           >
@@ -380,10 +361,10 @@ export default function RobotCard({
               <span className="text-sm font-mono font-bold" style={{ color: cfg.accent }}>$</span>
               <input
                 type="number"
-                min={100}
-                step={100}
+                min={1}
+                step={1}
                 value={capitalInput}
-                onChange={e => setCapitalInput(Math.max(100, Number(e.target.value)))}
+                onChange={e => setCapitalInput(Math.max(1, Number(e.target.value)))}
                 className="flex-1 bg-transparent font-mono text-sm font-bold outline-none tabular-nums w-0"
                 style={{ color: '#e1e2e7' }}
               />
@@ -409,7 +390,7 @@ export default function RobotCard({
           </div>
         ) : (
           /* Modo ativo: PnL diário + win rate */
-          <div className="mb-8 space-y-4">
+          <div className="mb-4 space-y-2">
             {/* PnL diário destaque */}
             <div>
               <div
@@ -419,7 +400,7 @@ export default function RobotCard({
                 PNL Diário
               </div>
               <div
-                className="font-mono text-2xl font-bold tabular-nums"
+                className="font-mono text-base font-bold tabular-nums"
                 style={{ color: pnlPos ? '#00e297' : '#ffb4ab', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 {pnlPos ? '+' : '-'}${Math.abs(r.todayPnl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -486,7 +467,7 @@ export default function RobotCard({
 
         {/* ── Mini Sparkline ── */}
         {showMiniChart && (
-          <div className="relative mb-8" onClick={e => e.stopPropagation()}>
+          <div className="relative mb-3" onClick={e => e.stopPropagation()}>
             <MiniSparkline
               points={sparkPoints}
               accent={meta.accentHex}
@@ -517,7 +498,7 @@ export default function RobotCard({
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              {starting ? '···' : 'ATIVAR AGENTE'}
+              {starting ? '···' : 'ATIVAR ROBÔ'}
             </button>
           ) : isRunning ? (
             <>

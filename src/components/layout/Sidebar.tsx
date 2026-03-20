@@ -14,14 +14,15 @@ const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> 
 };
 
 const NAV_ITEMS = [
-  { page: 'dashboard', icon: 'dashboard',  label: 'Painel' },
+  { page: 'dashboard',     icon: 'dashboard',    label: 'Painel' },
   { divider: true },
-  { page: 'nexus',     icon: 'memory',      label: 'Nexus' },
-  { page: 'phantom',   icon: 'auto_awesome', label: 'Phantom' },
-  { page: 'oracle',    icon: 'insights',    label: 'Oracle' },
-  { page: 'radar',     icon: 'sensors',     label: 'Radar' },
+  { page: 'robot-nexus',   icon: 'memory',       label: 'Nexus' },
+  { page: 'robot-phantom', icon: 'auto_awesome', label: 'Phantom' },
+  { page: 'robot-oracle',  icon: 'insights',     label: 'Oracle' },
+  { page: 'radar',         icon: 'sensors',      label: 'Radar' },
   { divider: true },
-  { page: 'settings',  icon: 'settings',    label: 'Configurações/API' },
+  { page: 'history',       icon: 'history',      label: 'Histórico' },
+  { page: 'settings',      icon: 'settings',     label: 'Configurações/API' },
 ] as const;
 
 export default function Sidebar({ activePage = 'dashboard', onNavigate }: SidebarProps) {

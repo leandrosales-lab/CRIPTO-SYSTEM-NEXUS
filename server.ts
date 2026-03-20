@@ -149,13 +149,17 @@ executor.on('trade_close', (trade: Trade) => {
   equityCurve.push(point);
   if (equityCurve.length > 1000) equityCurve.shift();
   saveEquityPoint(point);
-  // Update synthetic radar state
+  const pnl = trade.pnl || 0;
   if (trade.robotId === 'radar') {
-    const pnl = trade.pnl || 0;
+    // Update synthetic radar state
     radarState.totalPnl += pnl;
     radarState.todayPnl += pnl;
     if (pnl > 0) radarState.winCount++; else radarState.lossCount++;
     broadcast('robot_state', { ...radarState, activeTrades: executor.getOpenTrades().filter(t => t.robotId === 'radar') });
+  } else {
+    // Atualiza estado do robô (nexus/phantom/oracle) e transmite ao frontend
+    const bot = robots.find(r => r.getState().id === trade.robotId);
+    if (bot) bot.closeTrade(pnl);
   }
   broadcast('trade_close', trade);
   broadcast('equity_update', { capital: riskManager.getCapital(), totalPnl: riskManager.getTotalPnl(), equityCurve: equityCurve.slice(-50) });

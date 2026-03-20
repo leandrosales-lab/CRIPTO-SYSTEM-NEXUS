@@ -2,6 +2,7 @@ import { useStore } from '../store/useStore';
 import RobotCard from '../components/dashboard/RobotCard';
 import ActiveTrades from '../components/dashboard/ActiveTrades';
 import EquityChart from '../components/dashboard/EquityChart';
+import TradeHistoryTable from '../components/dashboard/TradeHistoryTable';
 
 // ─── Paleta fiel ao Stitch ───────────────────────────────────────────────────
 const C = {
@@ -254,7 +255,7 @@ function RobotsGrid() {
           className="font-black text-2xl uppercase tracking-tighter"
           style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.text }}
         >
-          Agentes Sintéticos
+          Robôs Ativos
         </h2>
         <div className="flex items-center gap-6 flex-1 mx-8">
           <div className="h-px flex-1" style={{ background: C.outlineSoft }} />
@@ -267,12 +268,11 @@ function RobotsGrid() {
         </p>
       </div>
 
-      {/* 4 colunas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* 3 colunas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <RobotCard robotId="nexus"   color="cyan"  />
         <RobotCard robotId="phantom" color="green" />
         <RobotCard robotId="oracle"  color="amber" />
-        <RobotCard robotId="radar"   color="cyan"  />
       </div>
     </section>
   );
@@ -342,8 +342,11 @@ export default function DashboardPage() {
         {/* ── Linha 2: Grid de 4 robots ── */}
         <RobotsGrid />
 
-        {/* ── Linha 3: Tabela de ordens ── */}
+        {/* ── Linha 3: Ordens ativas ── */}
         <OrdersSection />
+
+        {/* ── Linha 4: Histórico de trades fechados ── */}
+        <TradeHistoryTable />
 
       </div>
     </div>
