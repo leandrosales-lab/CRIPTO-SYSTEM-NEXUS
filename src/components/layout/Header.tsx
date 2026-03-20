@@ -1,183 +1,222 @@
 import { useRef } from 'react';
 import { useStore } from '../../store/useStore';
 
-const TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT'];
-const FALLBACK: Record<string, { price: number; change: number }> = {
-  BTCUSDT:  { price: 67420,  change:  2.14 },
-  ETHUSDT:  { price: 3218,   change:  1.87 },
-  SOLUSDT:  { price: 142.5,  change: -0.93 },
-  BNBUSDT:  { price: 418,    change:  0.45 },
-  XRPUSDT:  { price: 0.5821, change:  3.21 },
-  ADAUSDT:  { price: 0.4512, change: -1.24 },
-  DOGEUSDT: { price: 0.1234, change:  5.67 },
-  AVAXUSDT: { price: 36.42,  change: -2.11 },
-};
-
-function fmtPrice(sym: string, price: number) {
-  if (!price) return FALLBACK[sym]?.price.toFixed(price > 100 ? 0 : 4) ?? '—';
-  return price > 10000 ? price.toFixed(0) : price > 1000 ? price.toFixed(1) : price > 1 ? price.toFixed(2) : price.toFixed(4);
+interface HeaderProps {
+  currentPage?: string;
 }
 
-const MODE_CONFIG = {
-  paper:   { label: 'Paper',   cls: 'badge-paper',   dot: '#22D3EE' },
-  testnet: { label: 'Testnet', cls: 'badge-testnet', dot: '#F59E0B' },
-  live:    { label: 'LIVE',    cls: 'badge-live',    dot: '#10B981' },
+const TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+
+const FALLBACK: Record<string, { price: number; change: number }> = {
+  BTCUSDT: { price: 67420,  change:  2.14 },
+  ETHUSDT: { price: 3218,   change:  1.87 },
+  SOLUSDT: { price: 142.5,  change: -0.93 },
 };
 
-export default function Header() {
-  const { connected, marketTicks, capital, totalPnl, setShowApiModal, killSwitchActive, mode, accountBalance } = useStore();
+function fmtPrice(sym: string, price: number): string {
+  const p = price || FALLBACK[sym]?.price || 0;
+  if (p > 10000) return p.toFixed(0);
+  if (p > 1000)  return p.toFixed(1);
+  if (p > 1)     return p.toFixed(2);
+  return p.toFixed(4);
+}
+
+function fmtMoney(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: 'Painel',
+  nexus:     'Nexus',
+  phantom:   'Phantom',
+  oracle:    'Oracle',
+  radar:     'Radar',
+  settings:  'Configurações / API',
+};
+
+export default function Header({ currentPage }: HeaderProps) {
+  const {
+    connected,
+    marketTicks,
+    capital,
+    totalPnl,
+    todayPnl,
+    mode,
+    accountBalance,
+    setShowApiModal,
+  } = useStore();
+
   const firstPrices = useRef<Record<string, number>>({});
 
   const bal = accountBalance as Record<string, number> | null;
   const isRealMode = (mode === 'live' || mode === 'testnet') && bal;
   const displayCapital = isRealMode ? (bal!.totalWalletBalance ?? capital) : capital;
-  const modeConf = MODE_CONFIG[mode] ?? MODE_CONFIG.paper;
 
-  // Compute per-ticker change against first seen price (session change)
-  const tickerItems = [...TICKER_SYMBOLS, ...TICKER_SYMBOLS].map((sym, i) => {
+  // Ticker BTC/ETH/SOL
+  const tickerItems = TICKER_SYMBOLS.map(sym => {
     const tick = marketTicks[sym];
     const price = tick?.price || 0;
     if (price > 0 && !firstPrices.current[sym]) firstPrices.current[sym] = price;
     const first = firstPrices.current[sym];
-    const change = first && first !== price
-      ? ((price - first) / first) * 100
-      : (FALLBACK[sym]?.change ?? 0);
+    const change =
+      first && first !== price
+        ? ((price - first) / first) * 100
+        : (FALLBACK[sym]?.change ?? 0);
     const up = change >= 0;
     const displayPrice = price > 0 ? price : FALLBACK[sym]?.price ?? 0;
+    const label = sym.replace('USDT', '');
 
     return (
-      <span key={`${sym}-${i}`} className="inline-flex items-center gap-2.5 mx-5 flex-shrink-0">
-        <span className="text-[9px] font-mono font-semibold tracking-widest text-slate-500">
-          {sym.replace('USDT', '')}
+      <span key={sym} className="inline-flex items-center gap-1.5 flex-shrink-0">
+        <span style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, color: '#859399', letterSpacing: '0.12em' }}>
+          {label}
         </span>
-        <span className="text-[11px] font-mono font-bold text-slate-100 tabular-nums">
+        <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#e1e2e7' }}>
           ${fmtPrice(sym, displayPrice)}
         </span>
-        <span className={`text-[9px] font-mono font-semibold ${up ? 'text-emerald-400' : 'text-rose-400'} tabular-nums`}>
-          {up ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
+        <span style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 600, color: up ? '#00e297' : '#ffb4ab' }}>
+          {up ? '▲' : '▼'}{Math.abs(change).toFixed(2)}%
         </span>
-        <span className="text-slate-700 text-[8px]">│</span>
       </span>
     );
   });
 
+  const breadcrumb = currentPage ? PAGE_LABELS[currentPage] : null;
+
+  const pnlColor = (v: number) => (v >= 0 ? '#00e297' : '#ffb4ab');
+  const pnlSign  = (v: number) => (v >= 0 ? '+' : '');
+
+  // Percentual do dia (usando capital como base estimada)
+  const todayPct = displayCapital > 0 ? (todayPnl / displayCapital) * 100 : 0;
+  const totalPct = displayCapital > 0 ? (totalPnl / (displayCapital - totalPnl || 1)) * 100 : 0;
+
   return (
     <header
-      className="flex-shrink-0"
+      className="flex-shrink-0 flex items-center justify-between px-5"
       style={{
-        background: 'rgba(5,7,15,0.97)',
-        borderBottom: '1px solid rgba(34,211,238,0.08)',
-        backdropFilter: 'blur(20px)',
+        height: 48,
+        background: '#0b0e11',
+        borderBottom: '1px solid #3c494e',
+        fontFamily: "'Space Grotesk', sans-serif",
+        zIndex: 50,
       }}
     >
-      {/* Ticker tape */}
-      <div
-        className="h-7 flex items-center overflow-hidden"
-        style={{ background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-      >
-        <div
-          className="ticker-inner inline-flex items-center whitespace-nowrap"
-          style={{ animationDuration: '55s' }}
+      {/* ── Esquerda: Logo + Ticker ── */}
+      <div className="flex items-center gap-5">
+        {/* Logo */}
+        <span
+          className="font-bold uppercase tracking-tight select-none flex-shrink-0"
+          style={{ fontSize: 14, color: '#4cd6ff', letterSpacing: '0.06em' }}
         >
+          KINETIC
+        </span>
+
+        {/* Separador */}
+        <span style={{ width: 1, height: 20, background: '#3c494e', display: 'inline-block' }} />
+
+        {/* Ticker BTC / ETH / SOL */}
+        <div className="hidden md:flex items-center gap-5">
           {tickerItems}
         </div>
       </div>
 
-      {/* Main nav */}
-      <div className="flex items-center justify-between px-5" style={{ height: 50 }}>
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, rgba(34,211,238,0.22) 0%, rgba(139,92,246,0.22) 100%)',
-                border: '1px solid rgba(34,211,238,0.28)',
-                boxShadow: '0 0 16px rgba(34,211,238,0.1)',
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <polygon points="8,1 15,5 15,11 8,15 1,11 1,5" stroke="#22D3EE" strokeWidth="1.5" fill="rgba(34,211,238,0.08)" />
-                <circle cx="8" cy="8" r="2" fill="#22D3EE" />
-                <line x1="8" y1="1" x2="8" y2="5" stroke="#22D3EE" strokeWidth="0.8" opacity="0.5" />
-                <line x1="8" y1="11" x2="8" y2="15" stroke="#22D3EE" strokeWidth="0.8" opacity="0.5" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', color: '#22D3EE', lineHeight: 1 }}>
-                CRIPTO<span style={{ color: '#E2E8F0' }}>SYSTEM</span>
-              </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#334155', letterSpacing: '0.3em', marginTop: 2 }}>
-                NEXUS TERMINAL v2.0
-              </div>
-            </div>
-          </div>
+      {/* ── Centro: Breadcrumb ── */}
+      <div className="flex-1 flex justify-center">
+        {breadcrumb && (
+          <span style={{ fontSize: 11, color: '#bbc9cf', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {breadcrumb}
+          </span>
+        )}
+      </div>
 
-          {/* Mode badge */}
-          <div className={`chip ${modeConf.cls} hidden lg:inline-flex`}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: modeConf.dot, boxShadow: `0 0 6px ${modeConf.dot}` }} />
-            {modeConf.label}
-          </div>
+      {/* ── Direita: Métricas + Ações ── */}
+      <div className="flex items-center gap-4">
+        {/* Saldo */}
+        <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
+          <span style={{ fontSize: 9, color: '#859399', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            SALDO:
+          </span>
+          <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#e1e2e7' }}>
+            ${fmtMoney(Number(displayCapital))} USDT
+          </span>
         </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-5">
-          {killSwitchActive && (
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg animate-pulse"
-              style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.4)' }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 flex-shrink-0" />
-              <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, fontWeight: 700, color: '#FC8181', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-                Kill Switch Ativo
-              </span>
-            </div>
-          )}
+        {/* Separador */}
+        <span className="hidden lg:block" style={{ width: 1, height: 16, background: '#3c494e' }} />
 
-          {/* Capital & P&L */}
-          <div className="hidden md:flex items-center gap-5">
-            <div className="header-stat">
-              <span className="header-stat-label">{isRealMode ? 'Saldo Binance' : 'Capital'}</span>
-              <span className="header-stat-value" style={{ color: '#E2E8F0' }}>${Number(displayCapital).toFixed(2)}</span>
-            </div>
-            <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.07)' }} />
-            <div className="header-stat">
-              <span className="header-stat-label">P&L Total</span>
-              <span className="header-stat-value" style={{ color: totalPnl >= 0 ? '#10B981' : '#EF4444' }}>
-                {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(4)}
-              </span>
-            </div>
-          </div>
+        {/* Diário */}
+        <div className="hidden md:flex items-center gap-1 flex-shrink-0">
+          <span style={{ fontSize: 9, color: '#859399', fontWeight: 600, letterSpacing: '0.1em' }}>DIÁRIO:</span>
+          <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: pnlColor(todayPnl) }}>
+            {pnlSign(todayPnl)}${fmtMoney(todayPnl)}
+          </span>
+        </div>
 
-          <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        {/* Total % */}
+        <div
+          className="hidden md:flex items-center justify-center px-2 py-0.5 rounded"
+          style={{ background: totalPnl >= 0 ? 'rgba(0,226,151,0.1)' : 'rgba(255,180,171,0.1)', border: `1px solid ${totalPnl >= 0 ? 'rgba(0,226,151,0.25)' : 'rgba(255,180,171,0.25)'}` }}
+        >
+          <span style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: pnlColor(totalPnl) }}>
+            {pnlSign(totalPct)}{totalPct.toFixed(1)}%
+          </span>
+        </div>
 
-          {/* Connection + Config */}
-          <div className="flex items-center gap-3">
-            <div
-              className="flex items-center gap-1.5"
-              style={{
-                fontFamily: "'JetBrains Mono'",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-                color: connected ? '#10B981' : '#EF4444',
-              }}
-            >
-              <span
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'live-dot' : ''}`}
-                style={{ background: connected ? '#10B981' : '#EF4444', boxShadow: connected ? '0 0 8px rgba(16,185,129,0.6)' : 'none' }}
-              />
-              {connected ? 'Online' : 'Offline'}
-            </div>
-            <button
-              onClick={() => setShowApiModal(true)}
-              className="btn-cyan text-[9px] font-mono px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all font-semibold"
-              style={{ fontFamily: "'JetBrains Mono'" }}
-            >
-              ⚙ API
-            </button>
-          </div>
+        {/* Separador */}
+        <span style={{ width: 1, height: 16, background: '#3c494e' }} />
+
+        {/* Ações */}
+        <div className="flex items-center gap-3" style={{ color: '#4cd6ff' }}>
+          {/* Status de conexão */}
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: connected ? '#00e297' : '#ffb4ab',
+              boxShadow: connected ? '0 0 6px rgba(0,226,151,0.7)' : 'none',
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
+            title={connected ? 'Online' : 'Offline'}
+          />
+
+          {/* Notificações */}
+          <button
+            className="material-symbols-outlined"
+            title="Notificações"
+            style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#4cd6ff', padding: 0, lineHeight: 1 }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#00e297')}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#4cd6ff')}
+          >
+            notifications
+          </button>
+
+          {/* Configurações / API */}
+          <button
+            className="material-symbols-outlined"
+            title="Configurações / API"
+            onClick={() => setShowApiModal(true)}
+            style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#4cd6ff', padding: 0, lineHeight: 1 }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#00e297')}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#4cd6ff')}
+          >
+            settings
+          </button>
+
+          {/* Usuário */}
+          <button
+            className="material-symbols-outlined"
+            title="Perfil"
+            style={{ fontSize: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#4cd6ff', padding: 0, lineHeight: 1 }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#00e297')}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#4cd6ff')}
+          >
+            account_circle
+          </button>
         </div>
       </div>
     </header>

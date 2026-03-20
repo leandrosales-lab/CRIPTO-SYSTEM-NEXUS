@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useStore } from '../store/useStore';
+import { useStore, Trade, RobotState } from '../store/useStore';
+
+type AccountBalance = ReturnType<typeof useStore.getState>['accountBalance'];
 
 const WS_URL = 'ws://localhost:3001';
 
@@ -36,7 +38,7 @@ export function useWebSocket() {
             const p = payload as { mode?: 'paper' | 'testnet' | 'live'; accountBalance?: unknown; [k: string]: unknown };
             setSystemState(p as Parameters<typeof setSystemState>[0]);
             if (p.mode) useStore.getState().setMode(p.mode);
-            if ('accountBalance' in p) useStore.getState().setAccountBalance(p.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if ('accountBalance' in p) useStore.getState().setAccountBalance(p.accountBalance as AccountBalance ?? null);
             break;
           }
           case 'robot_state':
@@ -50,7 +52,7 @@ export function useWebSocket() {
             break;
           case 'trailing_activated':
           case 'trailing_updated':
-            useStore.getState().updateTrailing(payload as Parameters<ReturnType<typeof useStore.getState>['updateTrailing']>[0]);
+            useStore.getState().updateTrailing(payload as { tradeId: string; trailingStopPrice: number; bestPrice?: number; trailingActive?: boolean });
             break;
           case 'market_tick':
             updateMarketTick((payload as { symbol: string; price: number }).symbol, (payload as { symbol: string; price: number }).price);
@@ -70,7 +72,7 @@ export function useWebSocket() {
             addAlert(payload as { level: string; message: string });
             break;
           case 'active_trades_update':
-            useStore.getState().setSystemState({ activeTrades: (payload as { activeTrades: Parameters<typeof useStore.getState>['0']['activeTrades'] }).activeTrades });
+            useStore.getState().setSystemState({ activeTrades: (payload as { activeTrades: Trade[] }).activeTrades });
             break;
           case 'radar_update':
             updateRadar({ signals: (payload as { signals: Parameters<typeof updateRadar>[0]['signals']; scanCount: number; scannedAt: number }).signals, scanCount: (payload as { scanCount: number }).scanCount, scannedAt: (payload as { scannedAt: number }).scannedAt });
@@ -78,13 +80,13 @@ export function useWebSocket() {
           case 'config_update': {
             const cfg = payload as { hasKeys?: boolean; mode?: 'paper' | 'testnet' | 'live'; accountBalance?: unknown };
             if (cfg.mode) useStore.getState().setMode(cfg.mode);
-            if ('accountBalance' in cfg) useStore.getState().setAccountBalance(cfg.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if ('accountBalance' in cfg) useStore.getState().setAccountBalance(cfg.accountBalance as AccountBalance ?? null);
             if (cfg.hasKeys !== undefined) useStore.getState().setApiKeySet(cfg.hasKeys);
             break;
           }
           case 'account_balance': {
             const ab = payload as { accountBalance?: unknown; mode?: 'paper' | 'testnet' | 'live' };
-            if ('accountBalance' in ab) useStore.getState().setAccountBalance(ab.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if ('accountBalance' in ab) useStore.getState().setAccountBalance(ab.accountBalance as AccountBalance ?? null);
             if (ab.mode) useStore.getState().setMode(ab.mode);
             break;
           }
@@ -101,7 +103,7 @@ export function useWebSocket() {
               killSwitchActive: false,
             });
             if (sr.mode) useStore.getState().setMode(sr.mode);
-            if ('accountBalance' in sr) useStore.getState().setAccountBalance(sr.accountBalance as Parameters<typeof useStore.getState>['0']['accountBalance'] ?? null);
+            if ('accountBalance' in sr) useStore.getState().setAccountBalance(sr.accountBalance as AccountBalance ?? null);
             break;
           }
         }

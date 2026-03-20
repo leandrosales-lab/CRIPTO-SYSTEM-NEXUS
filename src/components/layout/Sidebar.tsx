@@ -1,36 +1,38 @@
 import { useStore } from '../../store/useStore';
-import NeonProgress from '../ui/NeonProgress';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 
-function formatUptime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600).toString().padStart(2, '0');
-  const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
-  const sec = (s % 60).toString().padStart(2, '0');
-  return `${h}:${m}:${sec}`;
+interface SidebarProps {
+  activePage?: string;
+  onNavigate?: (page: string) => void;
 }
 
-const MODE_LABELS: Record<string, { label: string; color: string; dotClass: string }> = {
-  paper:   { label: 'Paper Trading', color: '#22D3EE', dotClass: 'status-dot-paper' },
-  testnet: { label: 'Testnet',       color: '#F59E0B', dotClass: 'status-dot-testnet' },
-  live:    { label: 'LIVE — REAL',   color: '#10B981', dotClass: 'status-dot-live' },
+const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  paper:   { label: 'PAPER',   color: '#4cd6ff', bg: 'rgba(76,214,255,0.12)' },
+  testnet: { label: 'TESTNET', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  live:    { label: 'LIVE',    color: '#00e297', bg: 'rgba(0,226,151,0.12)' },
 };
 
-const ROBOT_COLORS: Record<string, string> = {
-  PHANTOM: '#22D3EE',
-  NEXUS:   '#34D399',
-  ORACLE:  '#FBBF24',
-};
+const NAV_ITEMS = [
+  { page: 'dashboard', icon: 'dashboard',  label: 'Painel' },
+  { divider: true },
+  { page: 'nexus',     icon: 'memory',      label: 'Nexus' },
+  { page: 'phantom',   icon: 'auto_awesome', label: 'Phantom' },
+  { page: 'oracle',    icon: 'insights',    label: 'Oracle' },
+  { page: 'radar',     icon: 'sensors',     label: 'Radar' },
+  { divider: true },
+  { page: 'settings',  icon: 'settings',    label: 'Configurações/API' },
+] as const;
 
-export default function Sidebar() {
-  const { capital, totalPnl, drawdown, robots, activeTrades, killSwitchActive, mode, accountBalance, apiKeySet, setAccountBalance, setMode } = useStore();
-  const totalTrades  = activeTrades.length;
-  const uptime       = formatUptime(Date.now() - (useStore.getState().startTime || Date.now()));
-  const winRates     = robots.map(r => { const t = r.winCount + r.lossCount; return t > 0 ? (r.winCount / t) * 100 : 0; });
-  const avgWinRate   = winRates.length > 0 ? winRates.reduce((a, b) => a + b, 0) / winRates.length : 0;
-  const activeRobots = robots.filter(r => r.status === 'running').length;
+export default function Sidebar({ activePage = 'dashboard', onNavigate }: SidebarProps) {
+  const { mode, capital, accountBalance, apiKeySet, setAccountBalance, setMode } = useStore();
   const [refreshing, setRefreshing] = useState(false);
+
+  const modeConf = MODE_CONFIG[mode] ?? MODE_CONFIG.paper;
+
+  const bal = accountBalance as Record<string, number> | null;
+  const isRealMode = (mode === 'live' || mode === 'testnet') && bal;
+  const displayCapital = isRealMode ? (bal!.totalWalletBalance ?? capital) : capital;
 
   async function fetchBalance() {
     setRefreshing(true);
@@ -44,213 +46,150 @@ export default function Sidebar() {
 
   useEffect(() => {
     if (mode !== 'paper' && apiKeySet) fetchBalance();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, apiKeySet]);
-
-  const bal = accountBalance as Record<string, number> | null;
-  const isRealMode     = (mode === 'live' || mode === 'testnet') && bal;
-  const walletBalance  = isRealMode ? (bal!.totalWalletBalance ?? 0) : null;
-  const availableAmt   = isRealMode ? (bal!.availableBalance ?? 0) : null;
-  const displayCapital = walletBalance !== null ? walletBalance : capital;
-  const modeInfo       = MODE_LABELS[mode] ?? MODE_LABELS.paper;
-
-  async function resetKillSwitch() {
-    try { await axios.post('/api/kill-switch/reset'); } catch (_) {}
-  }
-
-  const divider = <div className="divider-glow mx-3" />;
-  const sectionLabel = (text: string) => (
-    <div className="px-4 pt-3.5 pb-1.5">
-      <span className="label-xxs">{text}</span>
-    </div>
-  );
 
   return (
     <aside
-      className="w-56 flex-shrink-0 flex flex-col overflow-hidden"
-      style={{ borderRight: '1px solid rgba(34,211,238,0.07)', background: 'rgba(5,7,15,0.65)', backdropFilter: 'blur(16px)' }}
+      className="flex-shrink-0 flex flex-col h-full"
+      style={{
+        width: 220,
+        background: '#111417',
+        borderRight: '1px solid #3c494e',
+        fontFamily: "'Space Grotesk', sans-serif",
+      }}
     >
-      {/* ── Visão Geral ── */}
-      <div className="p-3 pb-1">
-        {sectionLabel('Visão Geral')}
-
-        {/* Capital card */}
-        <div
-          className="mx-1 p-3 rounded-xl mb-2"
-          style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.1)' }}
+      {/* ── Logo ── */}
+      <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid #3c494e' }}>
+        <h1
+          className="font-bold uppercase tracking-tight leading-none"
+          style={{ fontSize: 13, color: '#4cd6ff', letterSpacing: '0.04em' }}
         >
-          <div className="flex justify-between items-baseline mb-0.5">
-            <span className="label-xs">{isRealMode ? 'Saldo Binance' : 'Capital'}</span>
-            <div className="flex items-center gap-1.5">
-              {isRealMode && (
-                <button
-                  onClick={fetchBalance} disabled={refreshing}
-                  title="Atualizar saldo"
-                  className="text-slate-600 hover:text-cyan-400 transition-colors"
-                  style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, lineHeight: 1 }}
-                >
-                  {refreshing ? '⟳' : '↺'}
-                </button>
-              )}
-            </div>
+          KINETIC INTELLIGENCE
+        </h1>
+        <p
+          className="uppercase mt-1"
+          style={{ fontSize: 9, color: '#859399', letterSpacing: '0.18em' }}
+        >
+          CENTRO DE COMANDO
+        </p>
+      </div>
+
+      {/* ── Navegação ── */}
+      <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
+        {NAV_ITEMS.map((item, idx) => {
+          if ('divider' in item) {
+            return (
+              <div
+                key={`divider-${idx}`}
+                className="my-2 mx-3"
+                style={{ height: 1, background: '#3c494e' }}
+              />
+            );
+          }
+
+          const isActive = activePage === item.page;
+
+          return (
+            <button
+              key={item.page}
+              onClick={() => onNavigate?.(item.page)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-left"
+              style={{
+                background: isActive ? '#1d2023' : 'transparent',
+                borderLeft: isActive ? `2px solid #4cd6ff` : '2px solid transparent',
+                color: isActive ? '#4cd6ff' : '#bbc9cf',
+              }}
+              onMouseEnter={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.background = '#1d2023';
+                  (e.currentTarget as HTMLElement).style.color = '#e1e2e7';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLElement).style.color = '#bbc9cf';
+                }
+              }}
+            >
+              <span
+                className="material-symbols-outlined flex-shrink-0"
+                style={{ fontSize: 20, lineHeight: 1 }}
+              >
+                {item.icon}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ── Rodapé: Modo + Operador ── */}
+      <div style={{ borderTop: '1px solid #3c494e' }}>
+        {/* Saldo rápido */}
+        <div
+          className="mx-3 mt-3 mb-2 px-3 py-2 rounded-lg flex items-center justify-between"
+          style={{ background: '#1d2023', border: '1px solid #3c494e' }}
+        >
+          <span style={{ fontSize: 10, color: '#859399', letterSpacing: '0.1em' }}>
+            {isRealMode ? 'SALDO' : 'CAPITAL'}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#e1e2e7', fontFamily: 'monospace' }}>
+              ${Number(displayCapital).toFixed(2)}
+            </span>
+            {isRealMode && (
+              <button
+                onClick={fetchBalance}
+                disabled={refreshing}
+                title="Atualizar saldo"
+                style={{ fontSize: 12, color: '#859399', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#4cd6ff')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#859399')}
+              >
+                {refreshing ? '⟳' : '↺'}
+              </button>
+            )}
           </div>
-          <div className="value-xl" style={{ color: '#E2E8F0', marginBottom: 6 }}>
-            ${displayCapital.toFixed(2)}
-          </div>
-          {availableAmt !== null && (
-            <div className="flex justify-between items-center mb-2">
-              <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 8, color: '#334155' }}>Disponível</span>
-              <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, color: '#10B981', fontWeight: 600 }}>${Number(availableAmt).toFixed(2)}</span>
-            </div>
-          )}
-          <NeonProgress value={Math.min(displayCapital, 2000)} max={2000} color="cyan" height={3} />
         </div>
 
-        {/* Drawdown + Win Rate */}
-        <div className="mx-1 space-y-2">
+        {/* Badge de modo */}
+        <div className="px-3 pb-3">
           <div
-            className="p-2.5 rounded-lg"
-            style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.05)' }}
+            className="flex items-center justify-between px-3 py-2 rounded-lg"
+            style={{ background: modeConf.bg, border: `1px solid ${modeConf.color}33` }}
           >
-            <div className="flex justify-between items-center mb-1.5">
-              <span className="label-xs">Drawdown</span>
+            <div className="flex items-center gap-2">
               <span
-                className="value-md"
-                style={{ color: drawdown > 10 ? '#EF4444' : drawdown > 5 ? '#F59E0B' : '#10B981' }}
+                className="rounded-full animate-pulse flex-shrink-0"
+                style={{
+                  width: 6,
+                  height: 6,
+                  background: modeConf.color,
+                  boxShadow: `0 0 6px ${modeConf.color}`,
+                  display: 'inline-block',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.18em',
+                  color: modeConf.color,
+                  textTransform: 'uppercase',
+                }}
               >
-                {drawdown.toFixed(1)}%
+                {modeConf.label}
               </span>
             </div>
-            <NeonProgress value={drawdown} max={15} color={drawdown > 10 ? 'red' : drawdown > 5 ? 'amber' : 'green'} height={3} />
-          </div>
-          <div
-            className="p-2.5 rounded-lg"
-            style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.05)' }}
-          >
-            <div className="flex justify-between items-center mb-1.5">
-              <span className="label-xs">Taxa Acerto</span>
-              <span className="value-md" style={{ color: '#22D3EE' }}>{avgWinRate.toFixed(0)}%</span>
-            </div>
-            <NeonProgress value={avgWinRate} max={100} color="cyan" height={3} />
+            <span style={{ fontSize: 9, color: '#bbc9cf', letterSpacing: '0.05em' }}>
+              OPERADOR_01
+            </span>
           </div>
         </div>
-      </div>
-
-      {divider}
-
-      {/* ── Métricas ── */}
-      <div className="px-3 py-1">
-        {sectionLabel('Métricas')}
-        <div
-          className="mx-1 rounded-xl overflow-hidden"
-          style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          {[
-            { label: 'Operações',    value: `${totalTrades}/20`,  color: totalTrades > 15 ? '#F59E0B' : '#94A3B8' },
-            { label: 'P&L Hoje',     value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}`, color: totalPnl >= 0 ? '#10B981' : '#EF4444' },
-            { label: 'Tempo Ativo',  value: uptime,               color: '#94A3B8' },
-            { label: 'Robôs Ativos', value: `${activeRobots}/3`,  color: '#22D3EE' },
-          ].map((item, i, arr) => (
-            <div
-              key={item.label}
-              className="flex justify-between items-center px-3 py-2"
-              style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-            >
-              <span className="label-xs">{item.label}</span>
-              <span className="value-md tabular-nums" style={{ color: item.color }}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {divider}
-
-      {/* ── Robôs ── */}
-      <div className="px-3 py-1 flex-1">
-        {sectionLabel('Robôs')}
-        <div className="mx-1 space-y-1.5">
-          {robots.length === 0 ? (
-            ['PHANTOM', 'NEXUS', 'ORACLE'].map(name => (
-              <div
-                key={name}
-                className="flex items-center justify-between px-3 py-2 rounded-lg"
-                style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
-                  <span style={{ fontFamily: "'Orbitron'", fontSize: 9, fontWeight: 600, color: ROBOT_COLORS[name] ?? '#94A3B8', letterSpacing: '0.1em' }}>
-                    {name}
-                  </span>
-                </div>
-                <span className="label-xxs">INATIVO</span>
-              </div>
-            ))
-          ) : (
-            robots.map(r => {
-              const isRunning = r.status === 'running';
-              const color     = ROBOT_COLORS[r.name] ?? '#94A3B8';
-              return (
-                <div
-                  key={r.id}
-                  className="px-3 py-2 rounded-lg"
-                  style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${isRunning ? color + '22' : 'rgba(255,255,255,0.04)'}` }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRunning ? 'live-dot' : ''}`}
-                        style={{ background: isRunning ? color : '#334155', boxShadow: isRunning ? `0 0 6px ${color}80` : 'none' }}
-                      />
-                      <span style={{ fontFamily: "'Orbitron'", fontSize: 9, fontWeight: 600, color: isRunning ? color : '#94A3B8', letterSpacing: '0.1em' }}>
-                        {r.name}
-                      </span>
-                    </div>
-                    <span className="value-md tabular-nums" style={{ color: r.todayPnl >= 0 ? '#10B981' : '#EF4444' }}>
-                      {r.todayPnl >= 0 ? '+' : ''}{r.todayPnl.toFixed(4)}
-                    </span>
-                  </div>
-                  {isRunning && r.activeTrades.length > 0 && (
-                    <div className="label-xxs" style={{ color: '#334155', paddingLeft: 14 }}>
-                      {r.activeTrades.length} posição{r.activeTrades.length > 1 ? 'ões' : ''} ativa{r.activeTrades.length > 1 ? 's' : ''}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Kill Switch ── */}
-      {killSwitchActive && (
-        <div className="px-4 pb-2 pt-1" style={{ borderTop: '1px solid rgba(244,63,94,0.2)' }}>
-          <button
-            onClick={resetKillSwitch}
-            className="w-full text-[9px] font-mono font-semibold py-2 rounded-lg uppercase tracking-wider transition-all hover:bg-rose-500/10"
-            style={{
-              fontFamily: "'JetBrains Mono'",
-              border: '1px solid rgba(244,63,94,0.35)',
-              color: '#FC8181',
-              background: 'rgba(244,63,94,0.06)',
-            }}
-          >
-            ■ Reset Kill Switch
-          </button>
-        </div>
-      )}
-
-      {/* ── Mode indicator ── */}
-      <div
-        className="px-4 py-2.5 flex items-center justify-center gap-2"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
-      >
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
-          style={{ background: modeInfo.color, boxShadow: `0 0 6px ${modeInfo.color}` }}
-        />
-        <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: modeInfo.color }}>
-          {modeInfo.label}
-        </span>
       </div>
     </aside>
   );
