@@ -126,7 +126,7 @@ robots.forEach(robot => {
 executor.on('trade_open', (trade: Trade) => {
   saveTrade(trade);
   broadcast('trade_open', trade);
-  broadcast('equity_update', { capital: riskManager.getCapital(), equityCurve: equityCurve.slice(-10) });
+  broadcast('equity_update', { capital: riskManager.getCapital(), totalPnl: riskManager.getTotalPnl(), equityCurve: equityCurve.slice(-10) });
 });
 
 executor.on('trailing_activated', (data) => {
@@ -158,7 +158,7 @@ executor.on('trade_close', (trade: Trade) => {
     broadcast('robot_state', { ...radarState, activeTrades: executor.getOpenTrades().filter(t => t.robotId === 'radar') });
   }
   broadcast('trade_close', trade);
-  broadcast('equity_update', { capital: riskManager.getCapital(), equityCurve: equityCurve.slice(-50) });
+  broadcast('equity_update', { capital: riskManager.getCapital(), totalPnl: riskManager.getTotalPnl(), equityCurve: equityCurve.slice(-50) });
 });
 
 riskManager.on('kill_switch', (data) => {

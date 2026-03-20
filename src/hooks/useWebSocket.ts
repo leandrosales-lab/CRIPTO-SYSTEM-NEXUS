@@ -55,12 +55,17 @@ export function useWebSocket() {
           case 'market_tick':
             updateMarketTick((payload as { symbol: string; price: number }).symbol, (payload as { symbol: string; price: number }).price);
             break;
-          case 'equity_update':
-            updateEquity((payload as { capital: number; equityCurve?: Parameters<typeof updateEquity>[1] }).capital, (payload as { equityCurve?: Parameters<typeof updateEquity>[1] }).equityCurve);
+          case 'equity_update': {
+            const ep = payload as { capital: number; totalPnl?: number; equityCurve?: Parameters<typeof updateEquity>[1] };
+            updateEquity(ep.capital, ep.equityCurve);
+            if (ep.totalPnl !== undefined) useStore.getState().setSystemState({ totalPnl: ep.totalPnl });
             break;
-          case 'capital_update':
-            updateEquity((payload as { capital: number }).capital);
+          }
+          case 'capital_update': {
+            const cp = payload as { capital: number; totalPnl: number };
+            useStore.getState().setSystemState({ capital: cp.capital, totalPnl: cp.totalPnl });
             break;
+          }
           case 'alert':
             addAlert(payload as { level: string; message: string });
             break;
