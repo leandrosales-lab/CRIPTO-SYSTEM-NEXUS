@@ -1,9 +1,41 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 
-export default function EquityChart() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { equityCurve, capital } = useStore();
+// ─── Paleta MD dark ───────────────────────────────────────────────────────────
+const C = {
+  bg:          '#111417',
+  surface:     '#1d2023',
+  surfaceHigh: '#272a2e',
+  primary:     '#4cd6ff',
+  green:       '#00e297',
+  red:         '#ffb4ab',
+  text:        '#e1e2e7',
+  dim:         '#bbc9cf',
+  outline:     '#3c494e',
+} as const;
+
+type Period = '7D' | '30D' | '90D';
+
+interface Props {
+  height?: number;
+}
+
+export default function EquityChart({ height = 180 }: Props) {
+  const canvasRef                     = useRef<HTMLCanvasElement>(null);
+  const { equityCurve, capital }      = useStore();
+  const [period, setPeriod]           = useState<Period>('30D');
+
+  const pnl      = capital - 100;
+  const pnlPct   = ((capital - 100) / 100) * 100;
+  const isProfit = pnl >= 0;
+  const lineColor = isProfit ? C.green : C.red;
+
+  // Filtrar pontos pelo período selecionado
+  const cutoffMs: Record<Period, number> = {
+    '7D':  7  * 24 * 3600 * 1000,
+    '30D': 30 * 24 * 3600 * 1000,
+    '90D': 90 * 24 * 3600 * 1000,
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -11,9 +43,9 @@ export default function EquityChart() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr  = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
+    canvas.width  = rect.width  * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
     const W = rect.width;
@@ -21,72 +53,86 @@ export default function EquityChart() {
 
     ctx.clearRect(0, 0, W, H);
 
-    const points = equityCurve.length > 1 ? equityCurve : [
-      { time: Date.now() - 3600000, value: 100 },
-      { time: Date.now() - 2400000, value: 101.2 },
-      { time: Date.now() - 1800000, value: 99.8 },
-      { time: Date.now() - 1200000, value: 102.4 },
-      { time: Date.now() - 600000,  value: 101.9 },
-      { time: Date.now(),           value: capital },
-    ];
+    const now    = Date.now();
+    const cutoff = now - cutoffMs[period];
+
+    const raw = equityCurve.filter(p => p.time >= cutoff);
+    const points =
+      raw.length > 1
+        ? raw
+        : [
+            { time: now - 3600000 * 6, value: 100 },
+            { time: now - 3600000 * 5, value: 101.2 },
+            { time: now - 3600000 * 4, value: 99.8 },
+            { time: now - 3600000 * 3, value: 102.4 },
+            { time: now - 3600000 * 2, value: 101.9 },
+            { time: now - 3600000,     value: 103.1 },
+            { time: now,               value: capital || 102.5 },
+          ];
 
     const values = points.map(p => p.value);
     const minVal = Math.min(...values) * 0.998;
     const maxVal = Math.max(...values) * 1.002;
-    const range = maxVal - minVal || 1;
-    const pad = { top: 20, right: 20, bottom: 28, left: 56 };
-    const isProfit = capital >= 100;
-    const lineColor = isProfit ? '#34D399' : '#F43F5E';
+    const range  = maxVal - minVal || 1;
+    const pad    = { top: 16, right: 16, bottom: 24, left: 50 };
 
-    const toX = (i: number) => pad.left + (i / Math.max(1, points.length - 1)) * (W - pad.left - pad.right);
-    const toY = (v: number) => pad.top + (1 - (v - minVal) / range) * (H - pad.top - pad.bottom);
+    const toX = (i: number) =>
+      pad.left + (i / Math.max(1, points.length - 1)) * (W - pad.left - pad.right);
+    const toY = (v: number) =>
+      pad.top + (1 - (v - minVal) / range) * (H - pad.top - pad.bottom);
 
-    // Grid horizontal lines
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.top + (i / 4) * (H - pad.top - pad.bottom);
-      const val = maxVal - (i / 4) * range;
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth = 1;
+    // ── Grid horizontal muito sutil ─────────────────────────────────────────
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+      const y   = pad.top + (i / gridLines) * (H - pad.top - pad.bottom);
+      const val = maxVal - (i / gridLines) * range;
+
+      ctx.strokeStyle = 'rgba(60,73,78,0.5)';
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([3, 6]);
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(W - pad.right, y);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(148,163,184,0.5)';
-      ctx.font = `9px 'JetBrains Mono', monospace`;
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = 'rgba(187,201,207,0.45)';
+      ctx.font      = `9px 'Inter', monospace`;
       ctx.textAlign = 'right';
-      ctx.fillText(`$${val.toFixed(2)}`, pad.left - 6, y + 3);
+      ctx.fillText(`$${val.toFixed(0)}`, pad.left - 6, y + 3);
     }
     ctx.textAlign = 'left';
 
-    // Baseline $100
+    // ── Linha de base $100 ───────────────────────────────────────────────────
     if (minVal < 100 && maxVal > 100) {
       const baseY = toY(100);
       ctx.setLineDash([4, 6]);
-      ctx.strokeStyle = 'rgba(148,163,184,0.2)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(187,201,207,0.2)';
+      ctx.lineWidth   = 1;
       ctx.beginPath();
       ctx.moveTo(pad.left, baseY);
       ctx.lineTo(W - pad.right, baseY);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = 'rgba(148,163,184,0.3)';
-      ctx.font = `8px 'JetBrains Mono', monospace`;
-      ctx.fillText('$100', W - pad.right + 4, baseY + 3);
     }
 
     if (points.length < 2) return;
 
-    // Fill gradient under curve
+    // ── Gradiente sob a curva ─────────────────────────────────────────────────
     const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
-    grad.addColorStop(0, isProfit ? 'rgba(52,211,153,0.2)' : 'rgba(244,63,94,0.2)');
-    grad.addColorStop(0.7, isProfit ? 'rgba(52,211,153,0.03)' : 'rgba(244,63,94,0.03)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    grad.addColorStop(0,   isProfit ? 'rgba(0,226,151,0.15)'  : 'rgba(255,180,171,0.15)');
+    grad.addColorStop(0.6, isProfit ? 'rgba(0,226,151,0.04)'  : 'rgba(255,180,171,0.04)');
+    grad.addColorStop(1,   'rgba(0,0,0,0)');
 
     ctx.beginPath();
     ctx.moveTo(toX(0), toY(points[0].value));
     for (let i = 1; i < points.length; i++) {
       const cpx = (toX(i - 1) + toX(i)) / 2;
-      ctx.bezierCurveTo(cpx, toY(points[i - 1].value), cpx, toY(points[i].value), toX(i), toY(points[i].value));
+      ctx.bezierCurveTo(
+        cpx, toY(points[i - 1].value),
+        cpx, toY(points[i].value),
+        toX(i), toY(points[i].value),
+      );
     }
     ctx.lineTo(toX(points.length - 1), H - pad.bottom);
     ctx.lineTo(toX(0), H - pad.bottom);
@@ -94,82 +140,207 @@ export default function EquityChart() {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Main line
+    // ── Linha principal ───────────────────────────────────────────────────────
     ctx.beginPath();
     ctx.moveTo(toX(0), toY(points[0].value));
     for (let i = 1; i < points.length; i++) {
       const cpx = (toX(i - 1) + toX(i)) / 2;
-      ctx.bezierCurveTo(cpx, toY(points[i - 1].value), cpx, toY(points[i].value), toX(i), toY(points[i].value));
+      ctx.bezierCurveTo(
+        cpx, toY(points[i - 1].value),
+        cpx, toY(points[i].value),
+        toX(i), toY(points[i].value),
+      );
     }
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = lineColor;
-    ctx.shadowBlur = 10;
+    ctx.strokeStyle  = lineColor;
+    ctx.lineWidth    = 2;
+    ctx.shadowColor  = lineColor;
+    ctx.shadowBlur   = 8;
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur   = 0;
 
-    // Last point dot
+    // ── Ponto final ───────────────────────────────────────────────────────────
     const lx = toX(points.length - 1);
     const ly = toY(points[points.length - 1].value);
+
     ctx.beginPath();
     ctx.arc(lx, ly, 5, 0, Math.PI * 2);
-    ctx.fillStyle = lineColor;
+    ctx.fillStyle   = lineColor;
     ctx.shadowColor = lineColor;
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur  = 14;
     ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur  = 0;
 
-    // Inner dot
     ctx.beginPath();
     ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
     ctx.fill();
 
-  }, [equityCurve, capital]);
-
-  const pnl = capital - 100;
-  const pnlPct = ((capital - 100) / 100) * 100;
-  const isProfit = pnl >= 0;
+  }, [equityCurve, capital, period]);
 
   return (
     <div
-      className="w-full h-full flex flex-col overflow-hidden rounded-xl"
-      style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: C.surface,
+        border: `1px solid ${C.outline}`,
+      }}
     >
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05] flex-shrink-0">
-        <div className="flex items-center gap-4">
+      {/* ── Header ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: `1px solid ${C.outline}`,
+          flexShrink: 0,
+          background: '#0b0e11',
+        }}
+      >
+        {/* Título + selector de período */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span
-            className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
+            style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              color: C.text,
+            }}
           >
-            Curva de Capital
+            Curva de Performance
           </span>
-          <div className="flex items-center gap-3 text-[9px] font-mono text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-4 h-px inline-block" style={{ background: isProfit ? '#34D399' : '#F43F5E' }} />
-              P&L
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-px inline-block" style={{ background: 'rgba(148,163,184,0.3)', borderTop: '1px dashed rgba(148,163,184,0.3)' }} />
-              Base $100
-            </span>
+          {/* Selector */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              background: C.surfaceHigh,
+              borderRadius: 6,
+              padding: 2,
+            }}
+          >
+            {(['7D', '30D', '90D'] as Period[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  cursor: 'pointer',
+                  border: 'none',
+                  transition: 'all 0.15s',
+                  background:
+                    period === p ? C.primary + '22' : 'transparent',
+                  color: period === p ? C.primary : C.dim,
+                }}
+              >
+                {p}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-            <div className="text-[9px] font-mono text-slate-500 leading-none mb-0.5">PORTFÓLIO</div>
-            <div className="text-sm font-mono font-bold text-slate-100">${capital.toFixed(2)}</div>
+
+        {/* Métricas resumidas */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div
+              style={{
+                fontSize: 9,
+                color: C.dim,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginBottom: 2,
+              }}
+            >
+              Portfólio
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: C.text,
+                fontVariantNumeric: 'tabular-nums',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              ${capital.toFixed(2)}
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-[9px] font-mono text-slate-500 leading-none mb-0.5">RETORNO</div>
-            <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isProfit ? '+' : ''}{pnlPct.toFixed(2)}%
+          <div style={{ textAlign: 'right' }}>
+            <div
+              style={{
+                fontSize: 9,
+                color: C.dim,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginBottom: 2,
+              }}
+            >
+              Retorno
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: isProfit ? C.green : C.red,
+                fontVariantNumeric: 'tabular-nums',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              {isProfit ? '+' : ''}
+              {pnlPct.toFixed(2)}%
             </div>
           </div>
         </div>
       </div>
-      <div className="flex-1 p-2 min-h-0">
-        <canvas ref={canvasRef} className="w-full h-full" style={{ display: 'block' }} />
+
+      {/* ── Canvas ── */}
+      <div
+        style={{
+          position: 'relative',
+          padding: '8px 4px 4px',
+          minHeight: height,
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: height,
+          }}
+        />
+
+        {/* Badge PNL no canto inferior direito */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 16,
+            padding: '4px 10px',
+            borderRadius: 6,
+            background: isProfit ? C.green + '18' : C.red + '18',
+            border: `1px solid ${isProfit ? C.green + '44' : C.red + '44'}`,
+            fontSize: 11,
+            fontWeight: 700,
+            color: isProfit ? C.green : C.red,
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {isProfit ? '+' : ''}${pnl.toFixed(2)}
+        </div>
       </div>
     </div>
   );
