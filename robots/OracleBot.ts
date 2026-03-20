@@ -110,7 +110,7 @@ export class OracleBot extends BaseRobot {
         const score   = isLong ? longScore : shortScore;
         const dir     = isLong ? 'LONG' as const : 'SHORT' as const;
 
-        if (score >= 60) {
+        if (score >= 70) {
           opportunities.push({
             symbol: ticker.symbol,
             direction: dir,

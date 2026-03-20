@@ -81,7 +81,7 @@ export class NexusBot extends BaseRobot {
         const score   = isLong ? longScore : shortScore;
         const dir     = isLong ? 'LONG' as const : 'SHORT' as const;
 
-        if (score >= 55) {
+        if (score >= 70) {
           opportunities.push({
             symbol: ticker.symbol,
             direction: dir,

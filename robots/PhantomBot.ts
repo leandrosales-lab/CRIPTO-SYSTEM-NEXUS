@@ -72,7 +72,7 @@ export class PhantomBot extends BaseRobot {
         const score   = isLong ? longScore : shortScore;
         const dir     = isLong ? 'LONG' as const : 'SHORT' as const;
 
-        if (score >= 65) {
+        if (score >= 70) {
           opportunities.push({
             symbol: ticker.symbol,
             direction: dir,
